@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appointment Details</title>
+    <style>
+        body{font-family:Inter, system-ui, Arial, sans-serif;background:#f7fafc;margin:0;color:#0f172a}
+        .container{max-width:720px;margin:28px auto;padding:18px;background:#fff;border-radius:10px;box-shadow:0 6px 18px rgba(12,18,35,0.06)}
+        .muted{color:#6b7280}
+        .row{display:flex;justify-content:space-between;gap:12px}
+        button{background:#2b7a78;color:#fff;border:none;padding:8px 10px;border-radius:8px;cursor:pointer}
+        button.secondary{background:#e6eef1;color:#06323a}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <h2 style="margin:0">Appointment Details</h2>
+            <div>
+                <button id="backBtn" class="secondary">Back</button>
+            </div>
+        </div>
+        <div id="content" style="margin-top:14px"></div>
+        <div style="margin-top:14px;text-align:right">
+            <button id="cancelAppt" class="secondary">Cancel Appointment</button>
+        </div>
+    </div>
+
+    <script>
+        function qs(name){
+            const p = new URLSearchParams(location.search);
+            return p.get(name);
+        }
+
+        function loadAppointments(){
+            try{ return JSON.parse(localStorage.getItem('appointments')||'[]'); }
+            catch(e){ return []; }
+        }
+
+        function saveAppointments(arr){ localStorage.setItem('appointments', JSON.stringify(arr)); }
+
+        function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]); }
+
+        const id = qs('id');
+        const content = document.getElementById('content');
+        const backBtn = document.getElementById('backBtn');
+        const cancelBtn = document.getElementById('cancelAppt');
+
+        backBtn.addEventListener('click', ()=> location.href = 'FirstPage.html');
+
+        if(!id){
+            content.innerHTML = '<div class="muted">No appointment id provided in the URL.</div>';
+            cancelBtn.style.display = 'none';
+        } else {
+            const appts = loadAppointments();
+            const a = appts.find(x => x.id === id);
+            if(!a){
+                content.innerHTML = '<div class="muted">Appointment not found.</div>';
+                cancelBtn.style.display = 'none';
+            } else {
+                    content.innerHTML = `
+                        <div><strong>${escapeHtml(a.name)}</strong> <span class="muted">(${escapeHtml(a.mode)})</span></div>
+                        <div class="muted" style="margin-top:6px">${escapeHtml(a.doctor)} · ${escapeHtml(a.date)} ${escapeHtml(a.time)}</div>
+                        <div style="margin-top:10px">Phone: <span class="muted">${escapeHtml(a.phone)}</span></div>
+                        <div style="margin-top:6px">Email: <span class="muted">${escapeHtml(a.email||'')}</span></div>
+                        <div style="margin-top:10px">Reason:</div>
+                        <div style="margin-top:6px;color:#334155">${escapeHtml(a.reason||'—')}</div>
+                        ${a.status ? '<div class="muted" style="margin-top:8px">Status: ' + escapeHtml(a.status) + '</div>' : ''}
+                    `;
+
+                    if(a.status === 'Cancelled'){
+                        cancelBtn.style.display = 'none';
+                    } else {
+                        cancelBtn.addEventListener('click', ()=>{
+                            if(!confirm('Cancel this appointment?')) return;
+                            const arr = loadAppointments();
+                            const item = arr.find(x => x.id === id);
+                            if(item){
+                                item.status = 'Cancelled';
+                                item.cancelledAt = new Date().toISOString();
+                                saveAppointments(arr);
+                            }
+                            alert('Appointment marked as cancelled. Returning to list.');
+                            location.href = 'FirstPage.html';
+                        });
+                    }
+            }
+        }
+    </script>
+</body>
+</html>

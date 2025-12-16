@@ -24,6 +24,7 @@
 		.appt{padding:10px;border:1px solid #eef2f7;border-radius:8px;margin-bottom:10px;background:#fbfeff}
 		.muted{color:var(--muted);font-size:0.9rem}
 		.empty{color:var(--muted);text-align:center;padding:24px}
+			.cancelled{opacity:0.65;text-decoration:line-through}
 		@media(max-width:880px){.grid{grid-template-columns:1fr} .row{grid-template-columns:1fr}}
 	</style>
 </head>
@@ -153,7 +154,7 @@
 			}
 			appts.slice().reverse().forEach((a, idx) => {
 				const node = document.createElement('div');
-				node.className = 'appt';
+				node.className = 'appt' + (a.status === 'Cancelled' ? ' cancelled' : '');
 				node.innerHTML = `
 					<div style="display:flex;justify-content:space-between;align-items:center">
 						<div>
@@ -162,10 +163,14 @@
 						</div>
 						<div style="text-align:right">
 							<div class="muted">${escapeHtml(a.phone||'')}</div>
-							<div style="margin-top:8px"><button data-id="${a.id}" class="deleteBtn secondary">Cancel</button></div>
+							<div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">
+								<button data-id="${a.id}" class="detailBtn secondary">Details</button>
+								<button data-id="${a.id}" class="deleteBtn secondary">Cancel</button>
+							</div>
 						</div>
 					</div>
 					<div style="margin-top:8px;color:#334155">${escapeHtml(a.reason||'')}</div>
+					${a.status ? '<div class="muted" style="margin-top:6px">Status: ' + escapeHtml(a.status) + '</div>' : ''}
 				`;
 				listEl.appendChild(node);
 			});
@@ -175,9 +180,22 @@
 				btn.addEventListener('click', e => {
 					const id = btn.getAttribute('data-id');
 					if(!confirm('Cancel this appointment?')) return;
-					const remaining = loadAppointments().filter(x => x.id !== id);
-					saveAppointments(remaining);
+					const arr = loadAppointments();
+					const item = arr.find(x => x.id === id);
+					if(item){
+						item.status = 'Cancelled';
+						item.cancelledAt = new Date().toISOString();
+						saveAppointments(arr);
+					}
 					render();
+				});
+			});
+
+			// details button navigates to detail page with id
+			listEl.querySelectorAll('.detailBtn').forEach(btn => {
+				btn.addEventListener('click', e => {
+					const id = btn.getAttribute('data-id');
+					location.href = 'AppointmentDetailPage.html?id=' + encodeURIComponent(id);
 				});
 			});
 		}
