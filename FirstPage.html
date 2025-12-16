@@ -15,7 +15,7 @@
 		.grid{display:grid;grid-template-columns:1fr 360px;gap:20px;margin-top:18px}
 		form{padding:12px}
 		label{display:block;font-size:0.9rem;margin-bottom:6px;color:var(--muted)}
-		input,select,textarea{width:100%;padding:10px;border:1px solid #e6e9ee;border-radius:8px;font-size:0.95rem}
+		input,select,textarea{width:git commit -m "first commit"100%;padding:10px;border:1px solid #e6e9ee;border-radius:8px;font-size:0.95rem}
 		.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 		.actions{display:flex;gap:8px;margin-top:12px}
 		button{background:var(--accent);color:#fff;border:none;padding:10px 12px;border-radius:8px;cursor:pointer}
@@ -97,6 +97,24 @@
 					<div class="muted" id="count">0</div>
 				</div>
 				<div id="appointmentsList" style="margin-top:12px;min-height:160px"></div>
+
+				<!-- Analytics -->
+				<div id="analytics" style="margin-top:12px;border-top:1px dashed #eef2f7;padding-top:10px">
+					<strong>Analytics</strong>
+					<div style="margin-top:8px">
+						<div class="muted">Total appointments: <span id="totalAppts">0</span></div>
+						<div class="muted">Upcoming: <span id="upcomingAppts">0</span> · Past: <span id="pastAppts">0</span></div>
+					</div>
+					<div style="margin-top:8px">
+						<div class="muted">By Doctor:</div>
+						<div id="byDoctor" style="margin-top:6px"></div>
+					</div>
+					<div style="margin-top:8px">
+						<div class="muted">By Mode:</div>
+						<div id="byMode" style="margin-top:6px"></div>
+					</div>
+					<canvas id="trendCanvas" width="300" height="50" style="width:100%;height:50px;margin-top:8px;border:1px solid #eef2f7;border-radius:6px"></canvas>
+				</div>
 				<div style="margin-top:10px;text-align:center">
 					<button id="exportBtn" class="secondary">Export JSON</button>
 				</div>
@@ -126,6 +144,8 @@
 		function render(){
 			const appts = loadAppointments();
 			countEl.textContent = appts.length;
+			// update analytics regardless of whether list is empty
+			renderAnalytics(appts);
 			listEl.innerHTML = '';
 			if(!appts.length){
 				listEl.innerHTML = '<div class="empty">No appointments yet</div>';
@@ -211,6 +231,79 @@
 			a.href = url; a.download = 'appointments.json'; document.body.appendChild(a); a.click(); a.remove();
 			URL.revokeObjectURL(url);
 		});
+
+		// Analytics helpers
+		function computeAnalytics(appts){
+			const stats = {
+				total: appts.length,
+				upcoming: 0,
+				past: 0,
+				byDoctor: {},
+				byMode: {},
+				last7: new Array(7).fill(0)
+			};
+			const now = new Date();
+			const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+			appts.forEach(a => {
+				// parse appointment date/time
+				const dt = new Date((a.date||'') + 'T' + (a.time||'00:00'));
+				if(dt >= now) stats.upcoming++;
+				else stats.past++;
+				stats.byDoctor[a.doctor] = (stats.byDoctor[a.doctor]||0) + 1;
+				stats.byMode[a.mode] = (stats.byMode[a.mode]||0) + 1;
+				// last 7 days (including today)
+				const dayDiff = Math.floor((dt - todayStart) / (1000*60*60*24));
+				if(dayDiff >= -6 && dayDiff <= 0){
+					// map -6..0 to 0..6
+					stats.last7[6 + dayDiff] += 1;
+				}
+			});
+			return stats;
+		}
+
+		function renderAnalytics(appts){
+			const stats = computeAnalytics(appts);
+			document.getElementById('totalAppts').textContent = stats.total;
+			document.getElementById('upcomingAppts').textContent = stats.upcoming;
+			document.getElementById('pastAppts').textContent = stats.past;
+			const bd = document.getElementById('byDoctor'); bd.innerHTML = '';
+			Object.keys(stats.byDoctor).forEach(k => {
+				const div = document.createElement('div');
+				div.className = 'muted';
+				div.textContent = `${k} — ${stats.byDoctor[k]}`;
+				bd.appendChild(div);
+			});
+			const bm = document.getElementById('byMode'); bm.innerHTML = '';
+			Object.keys(stats.byMode).forEach(k => {
+				const div = document.createElement('div');
+				div.className = 'muted';
+				div.textContent = `${k} — ${stats.byMode[k]}`;
+				bm.appendChild(div);
+			});
+			// draw trend
+			drawTrend(stats.last7);
+		}
+
+		function drawTrend(arr){
+			const c = document.getElementById('trendCanvas');
+			if(!c) return;
+			const ctx = c.getContext('2d');
+			const w = c.width = c.clientWidth * devicePixelRatio;
+			const h = c.height = c.clientHeight * devicePixelRatio;
+			ctx.clearRect(0,0,w,h);
+			const max = Math.max(1, ...arr);
+			const pad = 6 * devicePixelRatio;
+			const step = (w - pad*2) / (arr.length - 1 || 1);
+			ctx.strokeStyle = '#2b7a78'; ctx.lineWidth = 2 * devicePixelRatio; ctx.beginPath();
+			arr.forEach((v,i)=>{
+				const x = pad + i * step;
+				const y = h - pad - (v / max) * (h - pad*2);
+				if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+				// draw point
+				ctx.fillStyle = '#2b7a78'; ctx.beginPath(); ctx.arc(x,y,2.5*devicePixelRatio,0,Math.PI*2); ctx.fill();
+			});
+			ctx.stroke();
+		}
 
 		// initial render
 		render();
